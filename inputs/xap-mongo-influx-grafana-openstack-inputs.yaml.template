@@ -1,0 +1,10 @@
+image: '55aa4df7-1996-4507-955f-30f72d970836'
+flavor: 102
+agent_user: 'ubuntu'
+xap_management_security_group: 'xap_management_security_group'
+xap_container_security_group: 'xap_container_security_group'
+admin_port: 8083
+api_port: 8086
+raft_port: 8090
+protobuf_port: 8099
+grafana_ui_port: 3000

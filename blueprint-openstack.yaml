@@ -1,8 +1,5 @@
 tosca_definitions_version: cloudify_dsl_1_0
 
-#######
-# Cloudify Blueprint which describes a xap cluster (single node)
-#
 imports:
     - http://www.getcloudify.org/spec/cloudify/3.2m8/types.yaml
     - http://www.getcloudify.org/spec/diamond-plugin/1.2m8/plugin.yaml
@@ -23,8 +20,7 @@ inputs:
 
   flavor:
     type: string
-  
-  # Required input for vm host machine (in monitored server types)
+
   agent_user:
     type: string
 
@@ -36,56 +32,23 @@ inputs:
     type: string    
     default: 'xap_container_security_group'
 
-  admin_port:
-    type: integer
-    default: 8083
+  elasticsearch_api_port:
+    default: 9200
     description: >
-      InfluxDB admin_port
+      elasticsearch port
 
-  api_port:
-    default: 8086
-    description: >
-      InfluxDB api_port
-
-  raft_port:
-    default: 8090
-    description: >
-      InfluxDB raft_port
-
-  protobuf_port:
-    default: 8099
-    description: >
-      InfluxDB protobuf_port  
-
-  grafana_ui_port:
-    default: 3000
-    description: >
-      Grafana grafana_ui_port
-
-  elasticsearch_port:
+  elasticsearch_cluster_port:
+    default: 9300
     description: >
       elasticsearch port
 
   logstash_input_plugin:
-    description: >
-      User for connecting to agent VM's
 
   logstash_output_plugin:
-    description: >
-      User for connecting to agent VM's
 
   logstash_input_port:
-    description: >
-      User for connecting to agent VM's
 
   logstash_output_port:
-    description: >
-      User for connecting to agent VM's
-  
-  redis_port:
-    default: 6379
-    description: >
-      redis port
       
 node_templates:
 
@@ -221,153 +184,10 @@ node_templates:
           - target: xap_management
             type: cloudify.relationships.depends_on
 
-  # demo_shell:
-  #     type: demo_shell_type
-  #     relationships:
-  #         - target: xap_management_vm
-  #           type: cloudify.relationships.contained_in
-  #         - target: xap_management
-  #           type: cloudify.relationships.depends_on
-
-
-  ###########################################################
-  # MongoDB
-  ###########################################################    
-
-  mongod_host:
+  elasticsearch_logstash_host:
     type: monitoredhosts.openstack.nodes.MonitoredServer
     relationships:
-
-      ###########################################################
-      # Attaching the mongo security group to the mongo host
-      ###########################################################
-
-      - target: mongod_security_group
-        type: cloudify.openstack.server_connected_to_security_group
-
-  mongod:
-    type: mongodb.nodes.MongoDatabase
-    properties:
-      port: 27017
-    interfaces:
-      cloudify.interfaces.monitoring:
-          start:
-            implementation: diamond.diamond_agent.tasks.add_collectors
-            inputs:
-              collectors_config:
-                MongoDBCollector:
-                  config:
-                    hosts: "localhost:27017"
-    relationships:
-      - type: cloudify.relationships.contained_in
-        target: mongod_host
-
-  ###########################################################
-  # A security group to enable access to the mongo host
-  # using the port of the mongo node.
-  #
-  # We need this so that the nodecellar application can
-  # comminicate with MongoDB, since they are running on
-  # different hosts.
-  ###########################################################
-
-  mongod_security_group:
-    type: cloudify.openstack.nodes.SecurityGroup
-    properties:
-      security_group:
-        name: mongod_security_group
-      rules:
-        - remote_ip_prefix: 0.0.0.0/0
-          port: { get_property: [ mongod, port ] }
-        - remote_ip_prefix: 0.0.0.0/0
-          port: 28017
-
-  ###########################################################
-  # Grafana
-  ###########################################################    
-
-  grafana_host:
-    type: monitoredhosts.openstack.nodes.MonitoredServer
-    relationships:
-      - target: grafana_security_group
-        type: cloudify.openstack.server_connected_to_security_group
-
-  grafana:
-    type: grafana.nodes.Grafana
-    properties:
-      port: { get_input: grafana_ui_port }
-    relationships:
-      - type: cloudify.relationships.contained_in
-        target: grafana_host
-      - type: connected_to_influx
-        target: influxdb
-  ###########################################################
-  # A security group to enable access to the grafana host
-  # using the port of the grafana node.
-  #
-  # We need this so that applications can
-  # comminicate with grafana, since they are running on
-  # different hosts.
-  ###########################################################
-
-  grafana_security_group:
-    type: cloudify.openstack.nodes.SecurityGroup
-    properties:
-      security_group:
-        name: grafana_security_group
-      rules:
-        - remote_ip_prefix: 0.0.0.0/0
-          port: { get_property: [ grafana, port ] }
-
-  ###########################################################
-  # InfluxDB
-  ###########################################################   
-
-  influx_host:
-    type: monitoredhosts.openstack.nodes.MonitoredServer
-    relationships:
-      - target: influxdb_security_group
-        type: cloudify.openstack.server_connected_to_security_group
-
-  influxdb:
-    type: influxdb.nodes.InfluxDB
-    properties:
-      admin_port: { get_input: admin_port }
-      api_port: { get_input: api_port }
-      raft_port: { get_input: raft_port }
-      protobuf_port: { get_input: protobuf_port }
-    relationships:
-      - type: cloudify.relationships.contained_in
-        target: influx_host
-
-  ###########################################################
-  # A security group to enable access to the influxdb host
-  # using the port of the influxdb node.
-  #
-  # We need this so that applications can
-  # comminicate with influxdb, since they are running on
-  # different hosts.
-  ###########################################################
-
-  influxdb_security_group:
-    type: cloudify.openstack.nodes.SecurityGroup
-    properties:
-      security_group:
-        name: influxdb_security_group
-      rules:
-        - remote_ip_prefix: 0.0.0.0/0
-          port: { get_input: admin_port }
-        - remote_ip_prefix: 0.0.0.0/0
-          port: { get_input: api_port }
-        - remote_ip_prefix: 0.0.0.0/0
-          port: { get_input: raft_port }
-        - remote_ip_prefix: 0.0.0.0/0
-          port: { get_input: protobuf_port }
-
-  elasticsearch_logstash_redis_host:
-    type: monitoredhosts.openstack.nodes.MonitoredServer
-    relationships:
-      - target: elasticsearch_security_group
+      - target: elasticsearch_logstash_security_group
         type: cloudify.openstack.server_connected_to_security_group
 
   elasticsearch:
@@ -376,15 +196,7 @@ node_templates:
       port: { get_input: elasticsearch_port }
     relationships:
       - type: cloudify.relationships.contained_in
-        target: elasticsearch_logstash_redis_host
-
-  redis:
-    type: redis.nodes.Redis
-    properties:
-      port: { get_input: redis_port }
-    relationships:
-      - type: cloudify.relationships.contained_in
-        target: elasticsearch_logstash_redis_host
+        target: elasticsearch_logstash_host
 
   logstash:
     type: logstash.nodes.Logstash
@@ -393,18 +205,9 @@ node_templates:
       output_plugin: { get_input: logstash_output_plugin }      
     relationships:
       - type: cloudify.relationships.contained_in
-        target: elasticsearch_logstash_redis_host
+        target: elasticsearch_logstash_host
 
-  ###########################################################
-  # A security group to enable access to the elasticsearch, 
-  # logstash & redis host using the port of the elasticsearch node.
-  #
-  # We need this so that applications can
-  # comminicate with elasticsearch, since they are running on
-  # different hosts.
-  ###########################################################
-
-  elasticsearch_security_group:
+  elasticsearch_logstash_security_group:
     type: cloudify.openstack.nodes.SecurityGroup
     properties:
       security_group:

@@ -1,17 +1,13 @@
 tosca_definitions_version: cloudify_dsl_1_0
 
 imports:
-    - http://www.getcloudify.org/spec/cloudify/3.2m8/types.yaml
-    - http://www.getcloudify.org/spec/diamond-plugin/1.2m8/plugin.yaml
-    - http://www.getcloudify.org/spec/openstack-plugin/1.2m8/plugin.yaml
-    - https://raw.githubusercontent.com/kemiz/monitored-server-cfy3/3.2m8/types/monitored-server-types.yaml
+    - http://www.getcloudify.org/spec/cloudify/3.2/types.yaml
+    - http://www.getcloudify.org/spec/diamond-plugin/1.2/plugin.yaml
+    - http://www.getcloudify.org/spec/openstack-plugin/1.2/plugin.yaml
+    - https://raw.githubusercontent.com/kemiz/monitored-server-cfy3/master/types/monitored-server-types.yaml
     - https://raw.githubusercontent.com/kemiz/xap-4-cloudify-3/3.2m8/commons/xap-blueprint-commons.yaml
-    - https://raw.githubusercontent.com/kemiz/mongodb-cfy3/3.2m8/types/mongo.yaml
-    - https://raw.githubusercontent.com/kemiz/influx-cfy3/3.2m8/types/influx.yaml
-    - https://raw.githubusercontent.com/kemiz/grafana-cfy3/3.2m8/types/grafana.yaml
-    - https://raw.githubusercontent.com/kemiz/logstash-cfy3/3.2m8/types/logstash.yaml
-    - https://raw.githubusercontent.com/kemiz/elasticsearch-cfy3/3.2m8/types/elasticsearch.yaml
-    - https://raw.githubusercontent.com/kemiz/redis-cfy3/3.2m8/types/redis.yaml
+    - https://raw.githubusercontent.com/kemiz/logstash-cfy3/3.2/types/logstash.yaml
+    - https://raw.githubusercontent.com/kemiz/elasticsearch-cfy3/3.2/types/elasticsearch.yaml
 
 inputs:
 
@@ -40,15 +36,25 @@ inputs:
   elasticsearch_cluster_port:
     default: 9300
     description: >
-      elasticsearch port
+      elasticsearch cluster port
 
-  logstash_input_plugin:
+  logstash_inbound_port:
+    default: 4560
+    description: >
+      logstash inbound port
 
-  logstash_output_plugin:
+  logstash_outbound_port:
+    default: 9200
+    description: >
+      logstash outbound port
 
-  logstash_input_port:
+  logstash_config_filename:
+    description: >
+      Configuration filename
 
-  logstash_output_port:
+  logstash_config_filepath:
+    description: >
+      Configuration file path
       
 node_templates:
 
@@ -140,18 +146,6 @@ node_templates:
   floatingip:
       type: cloudify.openstack.nodes.FloatingIP
 
-  apache_lb_vm:
-      type: monitoredhosts.openstack.nodes.MonitoredServer
-      instances:
-          deploy: 1
-      properties:
-        server:
-            image: { get_input: image }
-            flavor: { get_input: flavor }
-      relationships:
-          - target: xap_container_security_group
-            type: cloudify.openstack.server_connected_to_security_group
-
   xap_management:
       type: xap_type
       properties:
@@ -193,7 +187,8 @@ node_templates:
   elasticsearch:
     type: elasticsearch.nodes.Elasticsearch
     properties:
-      port: { get_input: elasticsearch_port }
+      api_port: { get_input: elasticsearch_api_port }
+      cluster_port: { get_input: elasticsearch_cluster_port }
     relationships:
       - type: cloudify.relationships.contained_in
         target: elasticsearch_logstash_host
@@ -201,8 +196,8 @@ node_templates:
   logstash:
     type: logstash.nodes.Logstash
     properties:
-      input_plugin: { get_input: logstash_input_plugin }
-      output_plugin: { get_input: logstash_output_plugin }      
+      conf_filepath: { get_input: logstash_config_filepath }
+      conf_filename: { get_input: logstash_config_filename }
     relationships:
       - type: cloudify.relationships.contained_in
         target: elasticsearch_logstash_host
@@ -214,16 +209,11 @@ node_templates:
         name: elasticsearch_security_group
       rules:
         - remote_ip_prefix: 0.0.0.0/0
-          port: { get_property: [ elasticsearch, port ] }
+          port: { get_property: [ elasticsearch, api_port ] }
         - remote_ip_prefix: 0.0.0.0/0
-          port: { get_input: logstash_input_port }
+          port: { get_property: [ elasticsearch, cluster_port ] }
         - remote_ip_prefix: 0.0.0.0/0
-          port: { get_input: logstash_output_port }
-  
-  apache_lb:
-      type: cloudify.nodes.SoftwareComponent
-      relationships:
-          -   target: apache_lb_vm
-              type: cloudify.relationships.contained_in
-          -   target: xap_management
-              type: xap_connected_to_lus
+          port: { get_input: logstash_inbound_port }
+        - remote_ip_prefix: 0.0.0.0/0
+          port: { get_input: logstash_outbound_port }
+
